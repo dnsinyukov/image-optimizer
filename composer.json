@@ -1,0 +1,29 @@
+{
+    "name": "coderden/image-optimizer",
+    "description": "Image optimization package for PHP with jpegoptim, pngquant support",
+    "type": "library",
+    "keywords": [
+        "image",
+        "optimization",
+        "jpegoptim",
+        "pngquant"
+    ],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "CoderDen",
+            "email": "dnsinyukov@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "symfony/process": "^6.0",
+        "ext-fileinfo": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "CoderDen\\ImageOptimizer\\": "src/"
+        }
+    },
+    "minimum-stability": "dev"
+}
