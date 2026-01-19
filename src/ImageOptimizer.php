@@ -6,6 +6,9 @@ use CoderDen\ImageOptimizer\Contracts\OptimizerInterface;
 use CoderDen\ImageOptimizer\Optimizers\JpegOptimizer;
 use CoderDen\ImageOptimizer\Optimizers\PngOptimizer;
 use CoderDen\ImageOptimizer\Exceptions\OptimizationException;
+use FilesystemIterator;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 class ImageOptimizer
 {
@@ -49,6 +52,97 @@ class ImageOptimizer
             $optimizer->getCompressionRatio(),
             get_class($optimizer)
         );
+    }
+
+    public function optimizeDirectory(
+        string $directoryPath,
+        bool $recursive = true,
+        array $options = [],
+        ?array $extensions = null,
+        bool $overwriteOriginal = true
+    ): array {
+        $results = [];
+        $files = $this->findImagesInDirectory($directoryPath, $recursive, $extensions);
+        
+        foreach ($files as $filePath) {
+            try {
+                $optimizer = $this->getOptimizerForImage($filePath);
+                
+                if (!empty($options)) {
+                    $this->applyOptions($optimizer, $options);
+                }
+                
+                $optimizer->setOverwrite($overwriteOriginal);
+                
+                $originalSize = filesize($filePath);
+                $success = $optimizer->optimize($filePath);
+                $optimizedSize = $optimizer->getOptimizedSize();
+                
+                $results[] = new OptimizationResult(
+                    $success,
+                    $filePath,
+                    null,
+                    $originalSize,
+                    $optimizedSize,
+                    $optimizer->getCompressionRatio(),
+                    get_class($optimizer)
+                );
+                
+            } catch (OptimizationException $e) {
+                $results[] = new OptimizationResult(
+                    false,
+                    $filePath,
+                    null,
+                    filesize($filePath),
+                    filesize($filePath),
+                    0.0,
+                    null,
+                    $e->getMessage()
+                );
+            }
+        }
+        
+        return $results;
+    }
+
+    protected function findImagesInDirectory(
+        string $directoryPath,
+        bool $recursive = true,
+        ?array $extensions = null
+    ): array {
+        if (!is_dir($directoryPath)) {
+            throw new OptimizationException("Directory not found: {$directoryPath}");
+        }
+        
+        if (!is_readable($directoryPath)) {
+            throw new OptimizationException("Directory is not readable: {$directoryPath}");
+        }
+        
+        $extensions = $extensions ?? ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+        $extensions = array_map('strtolower', $extensions);
+        $imageFiles = [];
+        
+        $flags = FilesystemIterator::SKIP_DOTS | FilesystemIterator::FOLLOW_SYMLINKS;
+        
+        if ($recursive) {
+            $directoryIterator = new RecursiveDirectoryIterator($directoryPath, $flags);
+            $iterator = new RecursiveIteratorIterator($directoryIterator);
+        } else {
+            $iterator = new FilesystemIterator($directoryPath, $flags);
+        }
+        
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || !$file->isReadable()) {
+                continue;
+            }
+            
+            $extension = strtolower($file->getExtension());
+            if (in_array($extension, $extensions)) {
+                $imageFiles[] = $file->getPathname();
+            }
+        }
+        
+        return $imageFiles;
     }
 
     protected function getOptimizerForImage(string $imagePath): OptimizerInterface
@@ -142,5 +236,40 @@ class ImageOptimizer
         }
         
         return $results;
+    }
+
+    public function getDirectoryStats(array $results): array
+    {
+        $stats = [
+            'total_files' => count($results),
+            'successful' => 0,
+            'failed' => 0,
+            'total_original_size' => 0,
+            'total_optimized_size' => 0,
+            'total_saved_bytes' => 0,
+            'average_compression' => 0,
+        ];
+        
+        $totalCompression = 0;
+        $successfulCount = 0;
+        
+        foreach ($results as $result) {
+            if ($result->success) {
+                $stats['successful']++;
+                $stats['total_original_size'] += $result->originalSize;
+                $stats['total_optimized_size'] += $result->optimizedSize;
+                $stats['total_saved_bytes'] += $result->getSavedBytes();
+                $totalCompression += $result->getCompressionPercentage();
+                $successfulCount++;
+            } else {
+                $stats['failed']++;
+            }
+        }
+        
+        if ($successfulCount > 0) {
+            $stats['average_compression'] = $totalCompression / $successfulCount;
+        }
+        
+        return $stats;
     }
 }

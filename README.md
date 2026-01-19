@@ -128,6 +128,51 @@ $config = [
 
 $optimizer = new ImageOptimizer($config);
 ```
+## Directory Optimization
+
+You can optimize entire directories recursively with a single command:
+
+```php
+$optimizer = new ImageOptimizer();
+
+// Optimize all images in a directory (recursive by default)
+$results = $optimizer->optimizeDirectory('/path/to/images');
+
+// Optimize only files in the root directory (non-recursive)
+$results = $optimizer->optimizeDirectory('/path/to/images', false);
+
+// Optimize with custom options
+$results = $optimizer->optimizeDirectory('/path/to/images', true, [
+    'quality' => 75,
+    'stripAll' => true
+]);
+
+// Optimize only specific extensions
+$results = $optimizer->optimizeDirectory('/path/to/images', true, [], ['jpg', 'png']);
+
+// Don't overwrite original files (create optimized copies with .optimized suffix)
+$results = $optimizer->optimizeDirectory('/path/to/images', true, [], null, false);
+
+// Get directory statistics
+$stats = $optimizer->getDirectoryStats($results);
+
+echo "Total files processed: " . $stats['total_files'] . "\n";
+echo "Successful: " . $stats['successful'] . "\n";
+echo "Failed: " . $stats['failed'] . "\n";
+echo "Total saved: " . $this->formatBytes($stats['total_saved_bytes']) . "\n";
+echo "Average compression: " . round($stats['average_compression'], 2) . "%\n";
+
+// Process individual results
+foreach ($results as $result) {
+    if ($result->success) {
+        echo "✓ " . basename($result->sourcePath) . ": ";
+        echo "Saved " . $result->getFormattedSavedSize() . " ";
+        echo "(" . round($result->getCompressionPercentage(), 2) . "%)\n";
+    } else {
+        echo "✗ " . basename($result->sourcePath) . ": " . $result->error . "\n";
+    }
+}
+```
 
 ## Optimizers
 
